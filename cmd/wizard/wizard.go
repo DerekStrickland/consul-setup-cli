@@ -59,6 +59,9 @@ func (c *Command) Run(args []string) int {
 		c.UI.Error(cliErrors.NewWithError("wizard.Run.yaml.Marshal", err).Error())
 		return 1
 	}
+
+	fmt.Printf("--- t dump:\n%+v\n\n", string(result))
+
 	c.UI.Info(string(result))
 
 	return 0
@@ -80,10 +83,13 @@ func (c *Command) start() (*proto.ConsulHelmValues, error) {
 			return &prototype, err
 		}
 		if addStanza == "Y" {
-			proto.AddDefaultField(&output, fieldName)
+			reflection.SetField(output, "Enabled", true)
+			c.UI.Info(fmt.Sprintf("reflection.SetField: %+v", output))
+			// proto.AddDefaultField(&output, fieldName)
 		}
 	}
 
+	c.UI.Info(fmt.Sprintf("start: Result %+v", output))
 	return &output, nil
 }
 

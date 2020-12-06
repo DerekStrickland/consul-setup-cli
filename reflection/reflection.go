@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DerekStrickland/consul-setup-cli/errors"
 	cliErrors "github.com/DerekStrickland/consul-setup-cli/errors"
 )
 
@@ -50,22 +51,33 @@ func GetFieldNames(instance interface{}) []string {
 // the target field's metadata.
 func SetField(target interface{}, fieldName string, value interface{}) error {
 	targetValue := reflect.ValueOf(target)
-	targetField := targetValue.Elem().FieldByName(fieldName)
+	targetField := targetValue.FieldByName(fieldName)
 
 	if !targetField.IsValid() {
 		message := fmt.Sprintf("target field %s for type %s is invalid", fieldName, targetValue.Type().Name())
 		return cliErrors.NewWithMessage("reflection.SetField", message)
 	}
 
-	if isPrimitive(targetField.Type().Name()) {
-		err := setPrimitiveField(target, fieldName, value)
-		if err != nil {
-			return err
-		}
-		return nil
+	if !targetField.CanSet() {
+		return fmt.Errorf("Cannot set %s field value", fieldName)
 	}
 
-	targetField.Set(reflect.ValueOf(value))
+	// if isPrimitive(targetField.Type().Name()) {
+	// 	err := setPrimitiveField(target, fieldName, value)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	return nil
+	// }
+
+	targetFieldType := targetField.Type()
+	val := reflect.ValueOf(value)
+	if targetFieldType != val.Type() {
+		err := errors.NewWithMessage("reflection.SetField", "Provided value type didn't match target field type")
+		return err
+	}
+
+	targetField.Set(val)
 
 	return nil
 }
