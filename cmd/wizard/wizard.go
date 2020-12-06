@@ -52,6 +52,8 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
+	c.UI.Info(fmt.Sprintf("output: %+v", output))
+
 	result, err := yaml.Marshal(&output)
 	if err != nil {
 		c.UI.Error(cliErrors.NewWithError("wizard.Run.yaml.Marshal", err).Error())
