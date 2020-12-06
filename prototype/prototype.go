@@ -1,16 +1,14 @@
 package prototype
 
 import (
-	"reflect"
-
 	"github.com/DerekStrickland/consul-setup-cli/reflection"
 	"github.com/creasty/defaults"
 )
 
 // NewPrototype is a factory method for creating a new prototypical instance of
 // the YamlValues struct with default values.
-func NewPrototype() (YamlValues, error) {
-	prototype := &YamlValues{}
+func NewPrototype() (ConsulHelmValues, error) {
+	prototype := &ConsulHelmValues{}
 	if err := defaults.Set(prototype); err != nil {
 		return *prototype, err
 	}
@@ -19,19 +17,22 @@ func NewPrototype() (YamlValues, error) {
 }
 
 // AddDefaultField adds a Zero value instance of the field type
-func AddDefaultField(target *YamlValues, field reflect.StructField) error {
-	if reflection.IsPrimitive(field) {
-		reflection.SetPrimitiveField(&target)
-		return nil
-	}
+// TODO: wanted this to be an interface, but can't because go.
+func AddDefaultField(target interface{}, fieldName string) error {
+	var err error
+	// if reflection.IsPrimitive(&target, fieldName) {
+	// 	if err = reflection.SetField(&target, fieldName, ); err != nil {
+	// 		return err
+	// 	}
+	// 	return nil
+	// }
 
-	obj := reflection.NewFromStructField(field)
+	obj := reflection.NewZeroValue(target, fieldName)
 	if err := defaults.Set(obj); err != nil {
 		return err
 	}
 
-	err = reflection.SetField(&target, &obj, field)
-	if err != nil {
+	if err = reflection.SetField(target, fieldName, obj); err != nil {
 		return err
 	}
 
@@ -42,7 +43,7 @@ func AddDefaultField(target *YamlValues, field reflect.StructField) error {
 // that a user could specify during, say a setup wizard process. Ideally, the wizard
 // would iterate over each top level struct member, and then ask the user to choose
 // and options.  Then recursively, it
-type YamlValues struct {
+type ConsulHelmValues struct {
 	Global struct {
 		Enabled                   bool          `yaml:"enabled,omitempty"`
 		Name                      interface{}   `yaml:"name,omitempty"`

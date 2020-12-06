@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	proto "github.com/DerekStrickland/consul-setup-cli/prototype"
 	cliErrors "github.com/DerekStrickland/consul-setup-cli/errors"
+	proto "github.com/DerekStrickland/consul-setup-cli/prototype"
 	reflection "github.com/DerekStrickland/consul-setup-cli/reflection"
 
 	"github.com/hashicorp/consul/command/flags"
@@ -46,7 +46,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	output, err = c.start()
+	output, err := c.start()
 	if err != nil {
 		c.UI.Error(err.Error())
 		return 1
@@ -54,7 +54,7 @@ func (c *Command) Run(args []string) int {
 
 	result, err := yaml.Marshal(&output)
 	if err != nil {
-		c.UI.Error(cliErrors.NewWithError("wizard.Run.yaml.Marshal", err))
+		c.UI.Error(cliErrors.NewWithError("wizard.Run.yaml.Marshal", err).Error())
 		return 1
 	}
 	c.UI.Info(string(result))
@@ -62,23 +62,27 @@ func (c *Command) Run(args []string) int {
 	return 0
 }
 
-func (c *Command) start() (*proto.YamlValues, error) {
+func (c *Command) start() (*proto.ConsulHelmValues, error) {
 	//return cliErrors.NewWithMessage("wizard.startWizard", cliErrors.NotImplementedError)
 	prototype, err := proto.NewPrototype()
-	output := proto.YamlValues{}
+	output := proto.ConsulHelmValues{}
 	if err != nil {
-		return prototype, cliErrors.NewWithError("wizard.start", err)
+		return &prototype, cliErrors.NewWithError("wizard.start", err)
 	}
 
-	fields := reflection.GetFields(prototype)
-	for _, field := range fields {
-		addStanza := c.UI.Ask(fmt.Sprintf("Add a %s stanza? (Y/n)"), field.Name))
+	fieldNames := reflection.GetFieldNames(prototype)
+	for _, fieldName := range fieldNames {
+		query := fmt.Sprintf("Add a %s stanza? (Y/n)", fieldName)
+		addStanza, err := c.UI.Ask(query)
+		if err != nil {
+			return &prototype, err
+		}
 		if addStanza == "Y" {
-			proto.AddDefaultField(output, field.Name)
+			proto.AddDefaultField(&output, fieldName)
 		}
 	}
 
-	return nil
+	return &output, nil
 }
 
 // Synopsis returns a short description of the command

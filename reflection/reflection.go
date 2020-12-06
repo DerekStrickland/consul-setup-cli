@@ -1,6 +1,7 @@
 package reflection
 
 import (
+	"fmt"
 	"reflect"
 
 	cliErrors "github.com/DerekStrickland/consul-setup-cli/errors"
@@ -27,81 +28,105 @@ var primitives = []string{
 	"UnsafePointer",
 }
 
-// NewFromStructField returns a new reflect value from a StructField definition.
-func NewFromStructField(field reflect.StructField) reflect.Value {
-	return reflect.New(field.Type)
+// NewZeroValue returns a new zero value for a struct field.
+func NewZeroValue(target interface{}, fieldName string) interface{} {
+	targetValue := reflect.ValueOf(target)
+	targetField := targetValue.Elem().FieldByName(fieldName)
+	return reflect.Zero(targetField.Type()).Interface()
 }
 
-// GetFields provides a simple api for retrieving struct fields via reflection.
-func GetFields(instance interface{}) []reflect.StructField {
+// GetFieldNames provides a simple api for retrieving struct fields via reflection.
+func GetFieldNames(instance interface{}) []string {
 	_type := reflect.TypeOf(instance)
-	var fields []reflect.StructField
+	var fieldNames []string
 	for index := 0; index < _type.NumField(); index++ {
-		fields = append(fields, _type.FieldByIndex([]int{index}))
+		fieldNames = append(fieldNames, _type.Field(index).Name)
 	}
-	return fields
+
+	return fieldNames
 }
 
 // SetField sets a the value of an interface's member using a passed value and
 // the target field's metadata.
-func SetField(target *interface{}, val *interface{}, field reflect.StructField) error {
-	if IsPrimitive(field) {
-		return cliErrors.NewWithMessage("reflect.SetField", "Field is primitive. Use SetPrimitiveField instead.")
+func SetField(target interface{}, fieldName string, value interface{}) error {
+	targetValue := reflect.ValueOf(target)
+	targetField := targetValue.Elem().FieldByName(fieldName)
+
+	if !targetField.IsValid() {
+		message := fmt.Sprintf("target field %s for type %s is invalid", fieldName, targetValue.Type().Name())
+		return cliErrors.NewWithMessage("reflection.SetField", message)
 	}
 
-	targetValue := reflect.ValueOf(&target)
-	targetField := targetValue.Elem().FieldByName(field.Name)
-	if targetField.IsValid() {
-		targetField.Set(targetValue)
+	if isPrimitive(targetField.Type().Name()) {
+		err := setPrimitiveField(target, fieldName, value)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
+
+	targetField.Set(reflect.ValueOf(value))
 
 	return nil
 }
 
-// IsPrimitive tests if a StructField is a primitive type.
-func IsPrimitive(field reflect.StructField) bool {
+// IsPrimitive tests if a interface field is a primitive.
+func IsPrimitive(target interface{}, fieldName string) bool {
+	return isPrimitive(reflect.ValueOf(&target).Elem().FieldByName(fieldName).Type().Name())
+}
+
+// isPrimitive tests if a StructField is a primitive.
+func isPrimitive(typeName string) bool {
 	for _, primitive := range primitives {
-		if field.Type.Name() == primitive {
+		if typeName == primitive {
 			return true
 		}
 	}
 	return false
 }
 
-// SetPrimitiveField sets primitive fields on an reflect Value for primitive types.
-func SetPrimitiveField(field reflect.Value, fieldKind reflect.Kind, valueToApply interface{}) {
+func setPrimitiveField(target interface{}, fieldName string, value interface{}) error {
+	targetValue := reflect.ValueOf(&target)
+	field := targetValue.Elem().FieldByName(fieldName)
+	fieldKind := field.Kind()
+
 	switch fieldKind {
 	case reflect.Bool:
-		field.SetBool(valueToApply.(bool))
+		field.SetBool(value.(bool))
 	case reflect.Int:
-		field.SetInt(valueToApply.(int64))
+		field.SetInt(value.(int64))
 	case reflect.Int8:
-		field.SetInt(valueToApply.(int64))
+		field.SetInt(value.(int64))
 	case reflect.Int16:
-		field.SetInt(valueToApply.(int64))
+		field.SetInt(value.(int64))
 	case reflect.Int32:
-		field.SetInt(valueToApply.(int64))
+		field.SetInt(value.(int64))
 	case reflect.Int64:
-		field.SetInt(valueToApply.(int64))
+		field.SetInt(value.(int64))
 	case reflect.Uint:
-		field.SetUint(valueToApply.(uint64))
+		field.SetUint(value.(uint64))
 	case reflect.Uint8:
-		field.SetUint(valueToApply.(uint64))
+		field.SetUint(value.(uint64))
 	case reflect.Uint16:
-		field.SetUint(valueToApply.(uint64))
+		field.SetUint(value.(uint64))
 	case reflect.Uint32:
-		field.SetUint(valueToApply.(uint64))
+		field.SetUint(value.(uint64))
 	case reflect.Uint64:
-		field.SetUint(valueToApply.(uint64))
+		field.SetUint(value.(uint64))
 	case reflect.Float32:
-		field.SetFloat(valueToApply.(float64))
+		field.SetFloat(value.(float64))
 	case reflect.Float64:
-		field.SetFloat(valueToApply.(float64))
+		field.SetFloat(value.(float64))
 	case reflect.Complex64:
-		field.SetComplex(valueToApply.(complex128))
+		field.SetComplex(value.(complex128))
 	case reflect.Complex128:
-		field.SetComplex(valueToApply.(complex128))
+		field.SetComplex(value.(complex128))
 	case reflect.String:
-		field.SetString(valueToApply.(string))
+		field.SetString(value.(string))
+	default:
+		message := fmt.Sprintf("No match for field %s of Kind %s", fieldName, fieldKind.String())
+		return cliErrors.NewWithMessage("reflection.setPrimitiveField", message)
 	}
+
+	return nil
 }
