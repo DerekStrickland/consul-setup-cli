@@ -3,6 +3,7 @@ package wizard
 import (
 	"flag"
 	"fmt"
+	"reflect"
 	"sync"
 
 	cliErrors "github.com/DerekStrickland/consul-setup-cli/errors"
@@ -48,7 +49,7 @@ func (c *Command) Run(args []string) int {
 
 	output, err := c.start()
 	if err != nil {
-		c.UI.Error(err.Error())
+		c.UI.Error(cliErrors.NewWithError("wizard.Run.start", err).Error())
 		return 1
 	}
 
@@ -83,14 +84,37 @@ func (c *Command) start() (*proto.ConsulHelmValues, error) {
 			return &prototype, err
 		}
 		if addStanza == "Y" {
-			reflection.SetField(output, "Enabled", true)
-			c.UI.Info(fmt.Sprintf("reflection.SetField: %+v", output))
-			// proto.AddDefaultField(&output, fieldName)
+			stanzaPrototype, err := reflection.GetStructField(prototype, fieldName)
+			if err != nil {
+				return &prototype, err
+			}
+
+			err = c.buildStanza(output, fieldName, stanzaPrototype)
+			if err != nil {
+				return &prototype, err
+			}
+
+			c.UI.Info(fmt.Sprintf("wizard.Command.start.buildStanza: %+v\n\n", output))
 		}
 	}
 
 	c.UI.Info(fmt.Sprintf("start: Result %+v", output))
 	return &output, nil
+}
+
+func (c *Command) buildStanza(target interface{}, fieldName string, prototype interface{}) error {
+	prototypeType := reflect.TypeOf(prototype)
+	targetStanza := reflect.New(prototypeType).Elem()
+	c.UI.Info(fmt.Sprintf("targetStanza is %+v\n\n", targetStanza))
+
+	err := reflection.SetField(targetStanza, "Enabled", true)
+	if err != nil {
+		return err
+	}
+
+	c.UI.Info(fmt.Sprintf("wizard.Command.buildStanza: %+v\n\n", targetStanza))
+
+	return nil
 }
 
 // Synopsis returns a short description of the command

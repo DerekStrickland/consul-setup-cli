@@ -9,24 +9,23 @@ import (
 )
 
 var primitives = []string{
-	"Bool",
-	"Int",
-	"Int8",
-	"Int16",
-	"Int32",
-	"Int64",
-	"Uint",
-	"Uint8",
-	"Uint16",
-	"Uint32",
-	"Uint64",
-	"Uintptr",
-	"Float32",
-	"Float64",
-	"Complex64",
-	"Complex128",
-	"String",
-	"UnsafePointer",
+	"bool",
+	"int",
+	"int8",
+	"int16",
+	"int32",
+	"int64",
+	"uint",
+	"uint8",
+	"uint16",
+	"uint32",
+	"uint64",
+	"uintptr",
+	"float32",
+	"float64",
+	"complex64",
+	"complex128",
+	"string",
 }
 
 // NewZeroValue returns a new zero value for a struct field.
@@ -47,9 +46,54 @@ func GetFieldNames(instance interface{}) []string {
 	return fieldNames
 }
 
+// GetStructField gets a struct field as an interface from another struct by interface.
+func GetStructField(target interface{}, fieldName string) (interface{}, error) {
+	if !isOfKind(target, []reflect.Kind{reflect.Struct, reflect.Ptr}) {
+		return nil, cliErrors.NewWithMessage("reflection.GetStructField", "Cannot use GetStructField on a non-struct interface")
+	}
+
+	targetValue := reflectValue(target)
+	field := targetValue.FieldByName(fieldName)
+	if !field.IsValid() {
+		return nil, cliErrors.NewWithMessage("reflect.GetStructField", fmt.Sprintf("No such field: %s in obj", fieldName))
+	}
+
+	return field.Interface(), nil
+}
+
+func isOfKind(target interface{}, types []reflect.Kind) bool {
+	for _, _type := range types {
+		if reflect.TypeOf(target).Kind() == _type {
+			return true
+		}
+	}
+
+	return false
+}
+
+func reflectValue(target interface{}) reflect.Value {
+	var value reflect.Value
+
+	if reflect.TypeOf(target).Kind() == reflect.Ptr {
+		value = reflect.ValueOf(target).Elem()
+	} else {
+		value = reflect.ValueOf(target)
+	}
+
+	return value
+}
+
 // SetField sets a the value of an interface's member using a passed value and
 // the target field's metadata.
 func SetField(target interface{}, fieldName string, value interface{}) error {
+	if isPrimitive(value) {
+		err := setPrimitiveField(target, fieldName, value)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	targetValue := reflect.ValueOf(target)
 	targetField := targetValue.FieldByName(fieldName)
 
@@ -58,22 +102,15 @@ func SetField(target interface{}, fieldName string, value interface{}) error {
 		return cliErrors.NewWithMessage("reflection.SetField", message)
 	}
 
-	if !targetField.CanSet() {
-		return fmt.Errorf("Cannot set %s field value", fieldName)
-	}
-
-	// if isPrimitive(targetField.Type().Name()) {
-	// 	err := setPrimitiveField(target, fieldName, value)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return nil
+	// if !targetField.CanSet() {
+	// 	return cliErrors.NewWithMessage("reflection.SetField", fmt.Sprintf("Cannot set %s field value", fieldName))
 	// }
 
 	targetFieldType := targetField.Type()
 	val := reflect.ValueOf(value)
 	if targetFieldType != val.Type() {
-		err := errors.NewWithMessage("reflection.SetField", "Provided value type didn't match target field type")
+		message := fmt.Sprintf("Provided value of type %s didn't match target field with name %s of type %s on interface %+v", val.Type(), fieldName, targetFieldType, target)
+		err := errors.NewWithMessage("reflection.SetField", message)
 		return err
 	}
 
@@ -88,7 +125,9 @@ func IsPrimitive(target interface{}, fieldName string) bool {
 }
 
 // isPrimitive tests if a StructField is a primitive.
-func isPrimitive(typeName string) bool {
+func isPrimitive(value interface{}) bool {
+	typeName := reflect.TypeOf(value).Name()
+	fmt.Println("isPrimitive: typeName is " + typeName)
 	for _, primitive := range primitives {
 		if typeName == primitive {
 			return true
@@ -98,9 +137,12 @@ func isPrimitive(typeName string) bool {
 }
 
 func setPrimitiveField(target interface{}, fieldName string, value interface{}) error {
-	targetValue := reflect.ValueOf(&target)
-	field := targetValue.Elem().FieldByName(fieldName)
+	targetValue := reflect.ValueOf(target)
+	fmt.Println(fmt.Sprintf("setPrimitiveField: targetValue is %+v", targetValue))
+	field := targetValue.FieldByName(fieldName)
+	fmt.Println(fmt.Sprintf("setPrimitiveField: field %s is %+v", fieldName, field))
 	fieldKind := field.Kind()
+	fmt.Println(fmt.Sprintf("setPrimitiveField: fieldKind is %+v", fieldKind))
 
 	switch fieldKind {
 	case reflect.Bool:
